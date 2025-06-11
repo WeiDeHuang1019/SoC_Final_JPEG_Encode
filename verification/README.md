@@ -56,7 +56,7 @@
 * 根據模擬波形計算總週期數，使用下式計算延遲：
 
   $$
-  \text{延遲時間} = \frac{\text{總週期數}}{\text{系統時脈頻率 (Hz)}}
+  \text{Latency Time} = \frac{\text{Cycle Count}}{\text{Clock Frequency (Hz)}}
   $$
 
 * 確保壓縮一張 128x128 圖片所花費的時間不超過 3 毫秒。
