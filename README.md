@@ -18,7 +18,7 @@ JPEG_Compression_Project/
 
 ---
 
-## 各模組說明
+## 各部分說明
 
 ### 1. `jpeg_encoder_ip/`
 
