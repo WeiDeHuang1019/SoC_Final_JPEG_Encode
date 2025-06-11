@@ -8,6 +8,7 @@
 
 ## 架構總覽圖
 
+![螢幕擷取畫面 2025-06-11 141255](https://github.com/user-attachments/assets/60488433-54b9-4855-a896-28fab3cdd992)
 
 
 ## 系統模組簡介
