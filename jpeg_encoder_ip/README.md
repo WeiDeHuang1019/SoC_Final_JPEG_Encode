@@ -44,18 +44,11 @@ JPEG Encoder 預計包含以下功能模組：
 * 可與 AXI DMA 搭配運作：
   `DDR → MM2S → JPEG Encoder → S2MM → DDR`
 
----
-
-## 當前狀態
-
-* 目前使用 `stream_loopback` 模組驗證 DMA 資料流。
-* `Chrominance_Downsampling` 模組已具備 RTL 雛型，可處理 8×8 RGB 區塊轉換與平均。
-* 其餘模組如 DCT 與 Quantization 正規劃整合與模組化。
 
 ---
 
 
-## 🛠️ 後續工作計畫
+## 後續工作計畫
 
 * 完成 Chrominance Downsampling RTL 初版
 * 整合 DCT、Quantization 子模組
