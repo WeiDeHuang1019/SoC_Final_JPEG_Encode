@@ -55,6 +55,8 @@
 
 ## 整體資料流流程
 
+* SD card → DMA MM2S → AXIS Register Slice → stream_loopback → AXIS Register Slice → DMA S2MM → SD card
+
 1. **PS** 從 SD 卡讀取 `.rgb` 檔案至 DDR。
 2. **AXI DMA (MM2S)** 從 DDR 取出影像資料，以 AXI4-Stream 傳送至 PL。
 3. **PL（目前為 stream\_loopback\_0）** 接收資料並回傳（未來為 JPEG 壓縮核心）。
