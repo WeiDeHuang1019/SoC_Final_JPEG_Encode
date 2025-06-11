@@ -70,5 +70,10 @@ JPEG_Compression_Project/
 1. 將 `.rgb` 圖片放入 SD 卡
 2. 將 bitstream 與 SDK 程式燒錄至板子
 3. 執行壓縮流程：讀圖 → 壓縮 → 存檔
-4. 使用 `verification/python_tools` 進行壓縮品質評估（PSNR/SSIM）
+4. 使用 `verification/python_tools` 進行壓縮品質評估
+
+## 工作分配
+**黃維得(組長)**:負責系統架構設計
+**陳品妤**:JPEG壓縮核心IP
+**劉豐茗**:品質與功能驗證
 
