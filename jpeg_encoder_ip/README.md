@@ -25,7 +25,6 @@ JPEG Encoder 預計包含以下功能模組：
 3. **Quantization（量化）**
 
    * 對 DCT 係數使用 JPEG 標準量化矩陣進行壓縮。
-   * 支援可調整品質的 Q-factor。
 
 4. **Zigzag Scan**
 
