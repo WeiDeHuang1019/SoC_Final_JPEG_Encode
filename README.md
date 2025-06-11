@@ -2,7 +2,7 @@
 
 # 基於 FPGA 的 JPEG 壓縮系統
 
-本專案實作一個可在 Zynq SoC 平台上運行的 **硬體加速 JPEG 壓縮系統**，使用 Verilog RTL 撰寫 JPEG 編碼核心，並整合 AXI 架構、SD 卡影像讀寫、以及 PSNR / SSIM 等品質驗證工具。
+本專案實作一個可在 Zynq SoC 平台上運行的 **硬體加速 JPEG 壓縮系統**，使用 Verilog RTL 撰寫 JPEG 編碼核心，並整合 AXI 架構、SD 卡影像讀寫、以及 PSNR等品質驗證工具。
 
 ---
 
