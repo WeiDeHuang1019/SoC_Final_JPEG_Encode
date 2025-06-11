@@ -42,15 +42,6 @@
 * 處理 AXI 總線主從仲裁與路由。
 * PS 與 DMA、使用者 IP 模組之間的 AXI 互聯樞紐。
 
-### 6. `xlconcat_0`
-
-* 將 `s2mm_introut` 和 `mm2s_introut` 中斷信號合併為一條輸出 IRQ，提供給 PS 端中斷處理。
-
-### 7. `ps7_0_axi_periph`、`rst_ps7_0_100M`
-
-* 負責 AXI 總線時脈與重置信號控制。
-* 統一整合 PL 中的時脈與 Reset 訊號來源。
-
 ---
 
 ## 整體資料流流程
