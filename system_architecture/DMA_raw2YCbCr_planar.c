@@ -1,81 +1,136 @@
-#include "ff.h"           // FATFS 函式庫
-#include "xil_printf.h"   // Xilinx UART 輸出
+#include "xaxidma.h"
+#include "xparameters.h"
+#include "xil_printf.h"
+#include "ff.h"
+#include "xil_cache.h"
 #include "platform.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
-FATFS fatfs;       // FATFS 物件
-FIL file;          // 檔案物件
-UINT br;           // 實際讀取 byte 數
-#define IMG_SIZE 49152   // 128*128*3
+#define IMG_WIDTH   16
+#define IMG_HEIGHT  16
+#define NUM_PIXELS  (IMG_WIDTH * IMG_HEIGHT)
 
-u8 buffer[IMG_SIZE];     // 暫存影像資料
-u8 ycbcr_buf[IMG_SIZE];  // 儲存轉換後的 YCbCr 資料
+#define RGB_SIZE    (NUM_PIXELS * 3)   // 768 bytes
+#define YCBCR_SIZE  (NUM_PIXELS * 3)   // 768 bytes Planar: Y[256], Cb[256], Cr[256]
+#define OUT_SIZE    (384)
+
+#define TX_BUFFER_BASE  0x01000000
+#define RX_BUFFER_BASE  0x02000000
+
+FATFS fatfs;
+FIL file;
+UINT br, bw;
+
+XAxiDma AxiDma;
+
+u8 rgb_data[RGB_SIZE];
+u8 ycbcr_planar[YCBCR_SIZE];
+
+void rgb_to_ycbcr(u8 R, u8 G, u8 B, u8 *Y, u8 *Cb, u8 *Cr) {
+    float r = R;
+    float g = G;
+    float b = B;
+    *Y  = (u8)( 0.299*r + 0.587*g + 0.114*b );
+    *Cb = (u8)(-0.169*r - 0.331*g + 0.5*b + 128);
+    *Cr = (u8)( 0.5*r - 0.419*g - 0.081*b + 128);
+}
 
 int main() {
-    init_platform();     // 初始化 UART 與平台
+    init_platform();
+    xil_printf("Starting RGB to YCbCr + DMA planar stream...\r\n");
 
-    // 掛載 SD 卡
+    // 1. Mount SD card
     if (f_mount(&fatfs, "0:/", 1) != FR_OK) {
-        xil_printf("SD卡掛載失敗\r\n");
+        xil_printf("Failed to mount SD card\r\n");
         return -1;
     }
 
-    xil_printf("SD卡掛載成功\r\n");
-
-    // 開啟檔案
-    if (f_open(&file, "image.rgb", FA_READ) != FR_OK) {
-        xil_printf("找不到檔案 image.rgb\r\n");
+    // 2. Read RGB file
+    if (f_open(&file, "img1616.rgb", FA_READ) != FR_OK) {
+        xil_printf("Failed to open RGB file\r\n");
         return -1;
     }
-
-    // 讀取內容到 buffer
-    if (f_read(&file, buffer, IMG_SIZE, &br) != FR_OK) {
-        xil_printf("讀取檔案失敗\r\n");
-        f_close(&file);
+    if (f_read(&file, rgb_data, RGB_SIZE, &br) != FR_OK || br != RGB_SIZE) {
+        xil_printf("Failed to read image.rgb (%d bytes read)\r\n", br);
         return -1;
     }
-
     f_close(&file);
-    xil_printf("成功讀取 image.rgb，總共 %u bytes\r\n", br);
+    xil_printf("Read image.rgb successfully (%d bytes)\r\n", br);
 
-    // 印出前 16 bytes 做確認
-    xil_printf("前 16 bytes: ");
-    for (int i = 0; i < 16; i++) {
-        xil_printf("%02X ", buffer[i]);
-    }
-    xil_printf("\r\n");
+    // 3. RGB to Planar YCbCr
+    for (int i = 0; i < NUM_PIXELS; i++) {
+        u8 R = rgb_data[i * 3 + 0];
+        u8 G = rgb_data[i * 3 + 1];
+        u8 B = rgb_data[i * 3 + 2];
 
-    // ==============================
-    // RGB → YCbCr 轉換開始
-    // 使用整數近似公式實作：不使用浮點
-    // ==============================
-    for (int i = 0; i < IMG_SIZE; i += 3) {
-        u8 R = buffer[i];
-        u8 G = buffer[i+1];
-        u8 B = buffer[i+2];
+        u8 Y, Cb, Cr;
+        rgb_to_ycbcr(R, G, B, &Y, &Cb, &Cr);
 
-        // Y = 0.299 R + 0.587 G + 0.114 B
-        // Cb = -0.169 R - 0.331 G + 0.5 B + 128
-        // Cr = 0.5 R - 0.419 G - 0.081 B + 128
-        // 用整數近似處理，避免浮點
-        u8 Y  = (  77 * R + 150 * G +  29 * B ) >> 8;
-        u8 Cb = ((-43 * R -  85 * G + 128 * B) >> 8) + 128;
-        u8 Cr = ((128 * R - 107 * G -  21 * B) >> 8) + 128;
-
-        ycbcr_buf[i]   = Y;
-        ycbcr_buf[i+1] = Cb;
-        ycbcr_buf[i+2] = Cr;
+        ycbcr_planar[0 * NUM_PIXELS + i] = Y;
+        ycbcr_planar[1 * NUM_PIXELS + i] = Cb;
+        ycbcr_planar[2 * NUM_PIXELS + i] = Cr;
     }
 
-    xil_printf("RGB 轉換為 YCbCr 完成\r\n");
+    xil_printf("YCbCr planar conversion complete\r\n");
 
-    // ==============================
-    // 可選功能：印出前 16 bytes 的 YCbCr 結果
-    // ==============================
-    xil_printf("YCbCr 前 16 bytes: ");
-    for (int i = 0; i < 16; i++) {
-        xil_printf("%02X ", ycbcr_buf[i]);
+    // 4. Copy to TX buffer (volatile to avoid optimization)
+    volatile u8 *tx_buf = (volatile u8 *)TX_BUFFER_BASE;
+    volatile u8 *rx_buf = (volatile u8 *)RX_BUFFER_BASE;
+
+    memcpy((void *)tx_buf, ycbcr_planar, YCBCR_SIZE);
+    memset((void *)rx_buf, 0x00, YCBCR_SIZE);  // Clear RX buffer
+
+    Xil_DCacheFlush();
+    Xil_DCacheFlushRange((UINTPTR)tx_buf, YCBCR_SIZE);
+    Xil_DCacheFlushRange((UINTPTR)rx_buf, YCBCR_SIZE);
+
+    // 5. DMA init
+    XAxiDma_Config *CfgPtr = XAxiDma_LookupConfig(XPAR_AXI_DMA_0_DEVICE_ID);
+    if (!CfgPtr || XAxiDma_CfgInitialize(&AxiDma, CfgPtr) != XST_SUCCESS) {
+        xil_printf("DMA init failed\r\n");
+        return -1;
     }
-    xil_printf("\r\n");
+
+    if (XAxiDma_HasSg(&AxiDma)) {
+        xil_printf("DMA is in SG mode, unsupported in Simple Mode flow\r\n");
+        return -1;
+    }
+
+    xil_printf("Starting DMA transfer...\r\n");
+
+    if (XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR)rx_buf, OUT_SIZE, XAXIDMA_DEVICE_TO_DMA) != XST_SUCCESS) {
+        xil_printf("RX DMA failed\r\n");
+        return -1;
+    }
+
+    if (XAxiDma_SimpleTransfer(&AxiDma, (UINTPTR)tx_buf, YCBCR_SIZE, XAXIDMA_DMA_TO_DEVICE) != XST_SUCCESS) {
+        xil_printf("TX DMA failed\r\n");
+        return -1;
+    }
+
+    xil_printf("Waiting for DMA to finish...\r\n");
+
+    while (XAxiDma_Busy(&AxiDma, XAXIDMA_DMA_TO_DEVICE));
+    xil_printf("TX done\r\n");
+
+    while (XAxiDma_Busy(&AxiDma, XAXIDMA_DEVICE_TO_DMA));
+    xil_printf("RX done\r\n");
+
+    Xil_DCacheInvalidateRange((UINTPTR)rx_buf, OUT_SIZE);
+
+    // 6. Save output
+    if (f_open(&file, "out1616.ycb", FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) {
+        xil_printf("Failed to open out.ycb for writing\r\n");
+        return -1;
+    }
+    if (f_write(&file, (void *)rx_buf, OUT_SIZE, &bw) != FR_OK || bw != OUT_SIZE) {
+        xil_printf("Failed to write YCbCr to SD\r\n");
+        return -1;
+    }
+    f_close(&file);
+    xil_printf("YCbCr saved to out1616.ycb (%d bytes)\r\n", bw);
 
     cleanup_platform();
     return 0;
