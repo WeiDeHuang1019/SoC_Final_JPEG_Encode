@@ -1,75 +1,206 @@
-# JPEG Encoder IP Specification
 
-## 📥 Input
-
-| 名稱               | 類型          | 說明 |
-|--------------------|---------------|------|
-| `s_axis_tdata`     | AXI4-Stream   | Y/Cb/Cr 資料（通常為 8-bit 或 16-bit）|
-| `s_axis_tvalid`    | AXI4-Stream   | 有效資料指示 |
-| `s_axis_tready`    | AXI4-Stream   | IP 準備接收資料 |
-| `s_axis_tlast`     | AXI4-Stream   | 一個影像結束指示 |
-| `aclk`             | Clock         | 全系統時脈 |
-| `aresetn`          | Active-Low Reset | 重設信號 |
-| (可選) `config_*`  | 控制訊號（AXI-Lite or input pins）| 設定品質、Q-table、image size 等參數 |
 
 ---
 
-## 📤 Output
+# 📘 Chroma Downsampling 模組
 
-| 名稱               | 類型          | 說明 |
-|--------------------|---------------|------|
-| `m_axis_tdata`     | AXI4-Stream   | JPEG Bitstream 壓縮資料（8-bit）|
-| `m_axis_tvalid`    | AXI4-Stream   | 有效輸出資料指示 |
-| `m_axis_tready`    | AXI4-Stream   | 接收者準備好接資料 |
-| `m_axis_tlast`     | AXI4-Stream   | 一張圖的 bitstream 結尾指示 |
-| (可選) `output_length` | AXI-Lite 寄存器 | JPEG Bitstream 的總長度（Bytes）|
+## 📌 一、模組功能說明
 
----
+在 JPEG 壓縮中，人眼對明亮度 (Luminance, Y) 較為敏感，對於色彩成分（Chrominance, Cb/Cr）不敏感。
+因此我們對 Cb、Cr 分量進行 **4:2:0 chroma downsampling**，將色彩取樣率降低為水平方向與垂直方向各為原來的 1/2，減少資料量，提升壓縮率。
 
-## ⚙️ Attributes
+此模組的功能為：
 
-| 屬性         | 說明                                   |
-|--------------|----------------------------------------|
-| 支援解析度   | 1980x1024，或於SDK事先設定   |
-| 色彩格式     | 接收 YCbCr（4:2:0）             |
-| 傳輸介面     | 完全 AXI4-Stream 相容                  |
+* 接收 YCbCr 資料流
+* 對 Cb、Cr 分量做 8×8 → 4×4 的下採樣
+* 保持 Y 分量完整不變
 
 ---
 
-## 🛠 Parameters（可透過 AXI-Lite 設定）
+## 🧠 二、原理與數學公式
 
-| 名稱             | 預設值     | 說明                           |
-|------------------|------------|--------------------------------|
-| `IMAGE_WIDTH`     | 128        | 圖片寬度（像素）               |
-| `IMAGE_HEIGHT`    | 128        | 圖片高度（像素）               |
-| `COLOR_SUBSAMPLE` | 4:2:0      | YCbCr 子取樣格式               |
-| `QUALITY_FACTOR`  | 50         | 壓縮品質參數（影響 Q-table）  |
-| `DATA_WIDTH`      | 8          | `tdata` 寬度（8 or 16）        |
+### 🔽 Downsampling 原理 (4:2:0)
 
----
+對每個 8×8 的 Cb 或 Cr 區塊做每 2×2 小區塊平均為 1 值：
 
-## 🧠 Method（運作方式）
+  $$
+  Cb'_{i,j} = \frac{1}{4} \left( Cb_{2i,2j} + Cb_{2i,2j+1} + Cb_{2i+1,2j} + Cb_{2i+1,2j+1} \right)
+  $$
 
-1. **接收資料**  
-   透過 AXI4-Stream 接收連續的 YCbCr 區塊資料
-
-2. **DCT（離散餘弦轉換）**  
-   對每個 8×8 區塊進行 2D DCT 轉換。
-
-3. **Quantization（量化）**  
-   使用 Q-table 對 DCT 結果進行量化（壓縮）。
-
-4. **Huffman Encoding（哈夫曼編碼）**  
-   將量化後的係數轉換成變長 bitstream（JPEG Bitstream）。
-
-5. **資料輸出**  
-   壓縮後資料以 AXI4-Stream 格式輸出，直到 `tlast = 1` 為止。
+* 結果為 4×4 區塊（共 16 個值）
 
 ---
 
-## 📘 備註
+📌 三、MCU（最小編碼單元）定義
 
-- 輸出的 bitstream 可直接寫成 `.jpg` 檔。
-- 可與 AXI DMA 搭配，透過 DMA 將輸出寫入 DDR。
-- 若不確定輸出長度，可根據 `tlast` 偵測結束，或使用附加 `output_length` 註冊。
+* MCU 定義為 **16×16** 像素：
+
+  * Y: 切為 4 個 8×8 區塊 → 各自進行 DCT + 編碼
+  * Cb/Cr: 每 2x2 區塊合併 → 共 1 個 8×8 區塊代表整體色彩資訊
+
+因此：
+
+* 每個 MCU 對應 4 個 Y 區塊（8×8）
+* 對應 1 個 Downsampled Cb（8×8）
+* 對應 1 個 Downsampled Cr（8×8）
+
+---
+
+
+
+
+### 2️⃣ 輸入輸出說明
+
+| Port 名稱         | 寬度    | 說明                       |
+| --------------- | ----- | ------------------------ |
+| `s_axis_tdata`  | 8-bit | 輸入的 Cb 或 Cr 單像素資料（逐像素送入） |
+| `m_axis_tdata`  | 8-bit | 輸出的 downsampled 像素資料     |
+
+
+
+
+
+
+# 📘 模組介紹：2D DCT (離散餘弦轉換) 模組 - AXI-Stream
+
+## 📌 一、模組名稱
+
+**2D DCT Module**（離散餘弦轉換模組）
+採用 AXI-Stream 接口，適用於 JPEG 圖像壓縮的頻域轉換階段。
+
+---
+
+## 📌 二、模組功能與背景
+
+DCT（Discrete Cosine Transform）是一種可將影像像素轉換到頻域的數學工具，是 JPEG 編碼流程中的**核心步驟**。
+在 JPEG 中，對每個 **8×8 區塊的 Y / Cb / Cr 分量**進行 2D DCT，將空間資訊轉換為頻率資訊，讓後續的量化能有效壓縮。
+
+---
+
+## 📌 三、DCT 原理與公式
+
+### 🎯 目標：
+
+將輸入的 8×8 區塊 `f(x,y)` 轉換為頻域區塊 `F(u,v)`
+
+### 📐 數學公式（標準 DCT-II）：
+
+$$
+F(u,v) = \frac{1}{4} \cdot C(u) \cdot C(v) \sum_{x=0}^{7} \sum_{y=0}^{7} f(x,y) \cdot \cos\left[ \frac{(2x+1)u\pi}{16} \right] \cdot \cos\left[ \frac{(2y+1)v\pi}{16} \right]
+$$
+
+其中：
+
+$$
+C(w) = 
+\begin{cases}
+\frac{1}{\sqrt{2}}, & \text{if } w = 0 \\
+1, & \text{otherwise}
+\end{cases}
+$$
+
+此運算將像素轉換為低頻 + 高頻組成，利於壓縮。
+
+---
+
+## 📌 四、模組輸入 / 輸出資料格式（AXI-Stream）
+
+### 📥 輸入介面（Slave AXI-Stream）
+
+| 訊號              | 位寬                | 說明                       |
+| --------------- | ----------------- | ------------------------ |
+| `s_axis_tdata`  | 64×8-bit（512-bit） | 一次送入一個 8×8 區塊（row-major） |
+
+### 📤 輸出介面（Master AXI-Stream）
+
+| 訊號              | 位寬                 | 說明                             |
+| --------------- | ------------------ | ------------------------------ |
+| `m_axis_tdata`  | 64×11-bit（704-bit） | 每個輸出值為 signed 11-bit，表示 DCT 結果 |
+
+---
+
+## 📌 五、模組實作架構
+
+DCT 屬於 2D 運算，但可使用 **1D → Transpose → 1D** 分離方式：
+
+```
+Input 8×8 Block
+     │
+     ▼
+[ 1D DCT (Row-wise) ] ─► Transpose ─► [ 1D DCT (Column-wise) ]
+     ▼                               ▼
+ Intermediate Matrix            Final 8x8 DCT Result
+```
+
+每階段使用矩陣乘法：
+
+$$
+F = A \cdot X \cdot A^T
+$$
+
+其中 `A` 是 DCT 係數矩陣。
+
+### 🎯 固定係數 DCT 矩陣：
+
+建議預儲 8×8 DCT 係數矩陣與其轉置版本，用 LUT / ROM 硬編碼，避免動態計算。
+
+---
+
+
+
+
+---
+
+## 🧠 一、DCT 的核心：矩陣乘法
+
+對一個 8×8 的影像區塊 $X$ 進行 2D DCT 的公式是：
+
+$$
+F = A \cdot X \cdot A^T
+$$
+
+其中：
+
+* $X$：輸入 8×8 區塊（像素強度）
+* $A$：DCT 變換矩陣（8×8）
+* $A^T$：矩陣 A 的轉置
+* $F$：輸出頻域 8×8 區塊（係數）
+
+---
+
+## 📐 二、DCT 矩陣 $A$ 的內容是什麼？
+
+矩陣 $A$ 是一個 **8×8 的實數矩陣**，每一列都是一個 DCT 基底函數。其第 $u$ 行、第 $x$ 列的值為：
+
+$$
+A_{u,x} = \alpha(u) \cdot \cos\left[ \frac{(2x + 1) \cdot u \cdot \pi}{16} \right]
+$$
+
+其中：
+
+* $u, x = 0,1,...,7$
+* $\alpha(u) = \begin{cases}
+  \sqrt{\frac{1}{8}}, & u = 0 \\
+  \sqrt{\frac{2}{8}}, & u \ne 0
+  \end{cases}$
+
+---
+
+## 🔢 三、實際數值（浮點數）
+
+我們以浮點數顯示 A 矩陣內容（前 3 位小數）：
+
+| A\[u]\[x] | x=0   | x=1    | x=2    | x=3    | x=4    | x=5    | x=6    | x=7    |
+| --------- | ----- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
+| u=0       | 0.354 | 0.354  | 0.354  | 0.354  | 0.354  | 0.354  | 0.354  | 0.354  |
+| u=1       | 0.490 | 0.416  | 0.278  | 0.098  | -0.098 | -0.278 | -0.416 | -0.490 |
+| u=2       | 0.461 | 0.191  | -0.191 | -0.461 | -0.461 | -0.191 | 0.191  | 0.461  |
+| u=3       | 0.416 | -0.098 | -0.490 | -0.278 | 0.278  | 0.490  | 0.098  | -0.416 |
+| u=4       | 0.354 | -0.354 | -0.354 | 0.354  | 0.354  | -0.354 | -0.354 | 0.354  |
+| u=5       | 0.278 | -0.490 | 0.098  | 0.416  | -0.416 | -0.098 | 0.490  | -0.278 |
+| u=6       | 0.191 | -0.461 | 0.461  | -0.191 | -0.191 | 0.461  | -0.461 | 0.191  |
+| u=7       | 0.098 | -0.278 | 0.416  | -0.490 | 0.490  | -0.416 | 0.278  | -0.098 |
+
+---
+
 
