@@ -50,6 +50,14 @@ JPEG_Compression_Project/
 3. 執行壓縮流程：讀圖 → 壓縮 → 存檔
 4. 使用 `verification/python_tools` 進行壓縮品質評估
 
+## 🔧 目前進度
+截至期末，
+目前已成功完成 **Chroma Downsampling 模組整合與驗證**及**DMA+AXI Stream系統架構**，能將 RGB 原始圖像轉換為 **4:2:0 格式的 YCbCr**，解析度支援達 **2048×2048**以上，並使用 **AXI-Stream + DMA** 架構進行分段式傳輸，每次傳送 768 筆資料（對應一個 16×16 MCU 區塊）。
+
+目前 **DCT + 量化**、**Zigzag + RLE + Huffman 編碼模組** 已完成 Verilog 端 API 介面規劃與功能模組的單元測試，但尚未整合進完整電路架構。為完成壓縮流程的驗證與比較，目前將以 **Python 實作其對應功能**，在 PC 端對 `.ycb` 檔案進行軟體補償壓縮，以利進行 **壓縮率、畫質（PSNR）、正確性驗證**。
+
+---
+
 ## 工作分配
 
 **黃維得(組長)**:負責系統架構設計、Chroma_Downsampling單元測試  
