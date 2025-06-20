@@ -1,3 +1,5 @@
+//本模組為 AXI-Stream 資料延遲器，接收固定筆數後暫存，延遲處理並依序完整輸出，用於資料同步與驗證。
+
 module axis_buffer_delay #(
     parameter DATA_WIDTH = 8,
     parameter BUFFER_SIZE = 768  // 預期接收 768 筆
