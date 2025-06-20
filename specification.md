@@ -48,7 +48,7 @@
 * 壓縮結果可正常解碼、顯示無誤
 * 壓縮比與 PSNR 達標
 * FPGA 使用率與延遲符合規格
-  → **詳細驗證方式請見 `/verification/README.md`**
+  → **詳細驗證方式請見 `src/verification/README.md`**
 
 ---
 
