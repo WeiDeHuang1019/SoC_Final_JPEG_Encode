@@ -1,10 +1,11 @@
 
-## 🎥 Demo 操作流程說明
+##  Demo 操作流程說明
 
 本段示範說明 FPGA JPEG 壓縮系統的實際運行流程，從影像輸入到成功輸出壓縮後之 YCbCr 檔案，並於 PC 上進行還原與驗證。  
 
 ---
 ### 原圖
+![2048test_preview](https://github.com/user-attachments/assets/384a4fb7-3783-4846-a637-0a49b2128b81)
 
 ---
 
