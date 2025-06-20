@@ -45,6 +45,6 @@
 ---
 
 ### Demo影片連結
-連結: 
+連結: https://youtu.be/ArASyOw06yo?si=G_Loae4rjhN3VZgE  
 
 此 Demo 驗證了硬體下採樣與傳輸流程的正確性，並證實 `.ycb` 檔可被軟體成功讀取與解碼，為後續 DCT 與編碼模組整合奠定基礎。
