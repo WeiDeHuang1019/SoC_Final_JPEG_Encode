@@ -14,39 +14,12 @@ BREAK DOWN
 
 ```
 JPEG_Compression_Project/
-├── jpeg_encoder_ip/        # JPEG 壓縮核心模組 (DCT、量化、Zigzag 等)
-├── system_architecture/    # 系統架構設計與 AXI 配置
-├── verification/           # 功能驗證、影像比較、SDK 程式碼
-└── README.md               # 專案介紹文件（本檔案）
+├── src/              # 硬體與軟體程式碼、API規格書
+├── demo/             # 實際Demo影片與介紹
+├── specification.md  # 五大規格書
+└── README.md         # 專案介紹文件（本檔案）
 ```
 
----
-
-## 各部分說明
-
-### 1. `jpeg_encoder_ip/`
-
-此資料夾包含 JPEG 編碼的 RTL 設計內容，主要模組包括：
-
-* 8×8 DCT 轉換器
-* 標準量化矩陣處理與 Zigzag 掃描等
-* AXI 介面封裝與控制邏輯
-
-### 2. `system_architecture/`
-
-此部分描述整個 JPEG 系統的硬體架構，包括：
-
-* Vivado Block Design 圖（包含 PS 與 PL 的 AXI 連接）
-* AXI4-Stream、AXI4-Lite 等通訊介面
-* DDR/BRAM 配置與位址對應關係
-
-### 3. `verification/`
-
-驗證資料夾包含以下內容：
-
-* Python 程式：用於影像 RGB 轉換、PSNR計算等
-* SDK 程式：負責讀寫 SD 卡、呼叫 JPEG 核心
-* 測試影像：原始與壓縮後圖片，用來比較品質與壓縮率
 
 ---
 
@@ -65,7 +38,7 @@ JPEG_Compression_Project/
 * **平台**：Zynq-7000 (如 EGO XZ7, XC7Z020)
 * **設計工具**：Vivado 2018.3
 * **語言**：Verilog RTL、C（SDK）、Python（驗證）
-* **影像格式**：`.rgb`（RGB888 原始影像）
+* **圖像格式**：`.rgb`（RGB888 原始影像）
 
 ---
 
@@ -78,7 +51,7 @@ JPEG_Compression_Project/
 
 ## 工作分配
 
-**黃維得(組長)**:負責系統架構設計  
-**陳品妤**:JPEG壓縮核心IP  
-**劉豐茗**:品質與功能驗證  
+**黃維得(組長)**:負責系統架構設計、Chroma_Downsampling單元測試
+**陳品妤**:JPEG壓縮理論研究、DCT_and_Quantization單元測試
+**劉豐茗**:品質與功能驗證、Zigzag_RLE_Huffman_Encoder單元測試
 
