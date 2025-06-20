@@ -6,7 +6,8 @@
 
 ---
 BREAK DOWN
-![JPEG_Encode_Breakdown](https://github.com/user-attachments/assets/25163728-1539-40b5-8f09-ae100b775d18)
+![螢幕擷取畫面 2025-06-20 201540](https://github.com/user-attachments/assets/8a93c548-5285-4dfe-909a-55bb45f8eb58)
+
 
 ---
 
@@ -51,7 +52,7 @@ JPEG_Compression_Project/
 
 ## 工作分配
 
-**黃維得(組長)**:負責系統架構設計、Chroma_Downsampling單元測試
-**陳品妤**:JPEG壓縮理論研究、DCT_and_Quantization單元測試
-**劉豐茗**:品質與功能驗證、Zigzag_RLE_Huffman_Encoder單元測試
+**黃維得(組長)**:負責系統架構設計、Chroma_Downsampling單元測試  
+**陳品妤**:JPEG壓縮理論研究、DCT_and_Quantization單元測試  
+**劉豐茗**:品質與功能驗證、Zigzag_RLE_Huffman_Encoder單元測試  
 
