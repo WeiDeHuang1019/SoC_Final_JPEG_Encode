@@ -48,7 +48,8 @@ module chroma_downsampling #(
     wire [5:0] cr_col = ((proc_idx - 320) & 7);
     wire [9:0] cr_base = (cr_row * 16 + cr_col) << 1;
 
-
+    reg [9:0] sum_cb;
+    reg [9:0] sum_cr;
 
     // AXIS IO
     assign s_axis_tready = (state == STATE_RECEIVE);
@@ -92,18 +93,27 @@ module chroma_downsampling #(
                         output_buf[proc_idx] <= buffer_y[proc_idx];
                         proc_idx <= proc_idx + 1;
                     end else if (proc_idx < 320) begin
-                        // Cb downsample 2x2 
-                        output_buf[proc_idx] <= (buffer_cb[cb_base] + buffer_cb[cb_base+1] + buffer_cb[cb_base+16] + buffer_cb[cb_base+17]) >> 2;
+                        // Cb downsample 2x2 (轉成 10-bit 加總避免 overflow)
+                        sum_cb = {2'b00, buffer_cb[cb_base]} +
+                                 {2'b00, buffer_cb[cb_base+1]} +
+                                 {2'b00, buffer_cb[cb_base+16]} +
+                                 {2'b00, buffer_cb[cb_base+17]};
+                        output_buf[proc_idx] <= sum_cb >> 2;
                         proc_idx <= proc_idx + 1;
                     end else if (proc_idx < 384) begin
-                        // Cr downsample 2x2 
-                        output_buf[proc_idx] <= (buffer_cr[cr_base] + buffer_cr[cr_base+1] + buffer_cr[cr_base+16] + buffer_cr[cr_base+17]) >> 2;
+                        // Cr downsample 2x2 (轉成 10-bit 加總避免 overflow)
+                        sum_cr = {2'b00, buffer_cr[cr_base]} +
+                                 {2'b00, buffer_cr[cr_base+1]} +
+                                 {2'b00, buffer_cr[cr_base+16]} +
+                                 {2'b00, buffer_cr[cr_base+17]};
+                        output_buf[proc_idx] <= sum_cr >> 2;
                         proc_idx <= proc_idx + 1;
                     end else begin
                         out_ptr <= 0;
                         state <= STATE_SEND;
                     end
                 end
+
 
                 STATE_SEND: begin
                     if (m_axis_tvalid && m_axis_tready) begin
