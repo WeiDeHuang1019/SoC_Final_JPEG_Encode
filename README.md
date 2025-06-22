@@ -55,6 +55,7 @@ JPEG_Compression_Project/
 目前已成功完成 **Chroma Downsampling 模組整合與驗證**及**DMA+AXI Stream系統架構**，能將 RGB 原始圖像轉換為 **4:2:0 格式的 YCbCr**，解析度支援達 **2048×2048**以上，並使用 **AXI-Stream + DMA** 架構進行分段式傳輸，每次傳送 768 筆資料（對應一個 16×16 MCU 區塊）。
 
 目前 **DCT + 量化**、**Zigzag + RLE + Huffman 編碼模組** 已完成 Verilog 端 API 介面規劃與功能模組的單元測試，但尚未整合進完整電路架構。
+![螢幕擷取畫面 2025-06-22 123513](https://github.com/user-attachments/assets/d7ef316d-230f-4e71-985e-7bea2ff07388)
 
 ---
 
