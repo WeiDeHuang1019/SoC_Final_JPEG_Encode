@@ -1,6 +1,6 @@
 
 
-## ✅ 完成的功能（RTL）
+##  完成的功能（RTL）
 
 
 ### 1. **Zigzag 掃描**
@@ -21,45 +21,45 @@
 
 ---
 
-## ✅ Testbench 測試內容與驗證的項目
+##  Testbench 測試內容與驗證的項目
 
-### ✅ 測試了以下 **功能正確性**：
+###  測試了以下 **功能正確性**：
 
 #### 1. DC 差分編碼（DPCM）
 
 * `pixel_block[0] = 10`，與初始 `prev_dc_value = 0` 相減後仍為 10。
 * `calc_size(10) = 4`，查表得到對應 Huffman code 和 val bits 為 10。
-* ✅ 波形顯示正確。
+*  波形顯示正確。
 
 #### 2. 正常 AC 係數處理（含正值/負值）
 
 * `pixel_block[1] = 5` → size = 3 → val bits = 5。
 * `pixel_block[2] = -2` → size = 2 → val bits = 1（= \~abs(-2) & 3 = \~2 & 3 = 1）。
-* ✅ 波形在 time=80ns 時 `final_val_bits = 1`，證明負數轉換正確。
+*  波形在 time=80ns 時 `final_val_bits = 1`，證明負數轉換正確。
 
 #### 3. RLE 零計數機制
 
 * `pixel_block[3] = 0`，`[5],[6],[7] = 0`：連續零被累積在 `zero_run_count`。
-* ✅ 波形中 `zero_run_count` 遞增過程清楚可見。
+*  波形中 `zero_run_count` 遞增過程清楚可見。
 
 #### 4. 有零後接非零時輸出 `(run, size)`
 
 * `pixel_block[4] = 1`：在累積 1 個 0 之後出現 → Huffman key = 1\_1 → 對應表查找成功。
-* ✅ `final_out_valid = 1`，並輸出 Huffman + val。
+*  `final_out_valid = 1`，並輸出 Huffman + val。
 
 #### 5. EOB 處理
 
 * 當 `ac_idx > 63`，自動進入 `S_EMIT_EOB`。
-* ✅ `final_huff_code = huff_table[0x00]`，波形也有 `encoding_done=1`。
+*  `final_huff_code = huff_table[0x00]`，波形也有 `encoding_done=1`。
 
 
 ---
 
-### ✅ RTL 功能驗證報告摘要
+###  RTL 功能驗證報告摘要
 
 本模組 `jpeg_core_encoder` 實作了 JPEG 核心壓縮流程，包括：
 
-| 功能項目                  | 驗證方式                                                   | 驗證結果 ✅                              |
+| 功能項目                  | 驗證方式                                                   | 驗證結果                               |
 | --------------------- | ------------------------------------------------------ | ----------------------------------- |
 | Zigzag 掃描             | 使用硬編碼的 Zigzag 表，配合 `ac_idx` 對應 `pixel_block_flat` 資料順序 | 正確。每 cycle 都能對應正確像素                 |
 | DC 差分編碼               | 減去前一塊 DC，計算 `size` 和 Huffman 查表，確認 `val_bits`          | 正確。`final_val_bits = 10`            |
@@ -69,7 +69,7 @@
 
 ---
 
-### ✅ 模擬結果總結
+###  模擬結果總結
 
 * 使用 Verilog Testbench 驗證全流程，包括時脈、reset、啟動編碼、監控輸出。
 * 成功觀察到：
@@ -80,7 +80,7 @@
 
 ---
 
-### 📊 參考截圖說明（可搭配報告展示）
+###  參考截圖說明
 
 波型截圖:
 
