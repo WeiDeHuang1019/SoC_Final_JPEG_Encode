@@ -13,12 +13,24 @@ BREAK DOWN
 
 ## 專案結構
 
-```
-JPEG_Compression_Project/
-├── src/              # 硬體與軟體程式碼、API規格書
-├── demo/             # 實際Demo影片與介紹
-├── specification.md  # 五大規格書
-└── README.md         # 專案介紹文件（本檔案）
+```bash
+SOC_JPEG_PROJECT/
+├── demo/                    # 展示影片、測試畫面等 demo 資料
+├── src/                     # 所有原始碼與測試程式的根目錄
+│   ├── hw/                  # Verilog 硬體模組與測試
+│   │   ├── 1_Chroma_Downsampling/        # Chroma 下採樣模組
+│   │   ├── 2_DCT_and_Quantization/       # DCT 與量化模組
+│   │   ├── 3_Zigzag_RLE_Huffman_Encoder/ # Zigzag + RLE + Huffman 編碼模組
+│   │   └── Others/                       # 其他相關模組
+│   │
+│   ├── sw/                  # SDK 軟體程式
+│   │   ├── SDK/             # 主程式與初始化
+│   │   └── Others/          # 暫存、次要軟體模組
+│
+├── verification/            # Python 壓縮模擬與圖像驗證工具
+│
+├── specification.md         # 五大規格文件
+└── README.md                # 專案總覽與說明（本檔案）
 ```
 
 
