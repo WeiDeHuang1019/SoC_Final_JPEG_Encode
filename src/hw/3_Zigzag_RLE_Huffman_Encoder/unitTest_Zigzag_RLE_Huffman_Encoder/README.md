@@ -83,6 +83,7 @@
 ###  參考截圖說明
 
 波型截圖:
+![messageImage_1750443410242](https://github.com/user-attachments/assets/2c4c0407-2a37-43ad-981b-ea739472fbf2)
 
 
 * `Time = 60ns`：`final_huff_code = 0000`，DC 編碼輸出。
