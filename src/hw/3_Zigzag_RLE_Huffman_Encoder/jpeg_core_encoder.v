@@ -22,242 +22,286 @@
 
 // ============================================================================
 // jpeg_core_encoder.v
-// æ•´åˆäº† Zigzag, RLE, Huffman åŠŸèƒ½çš„ JPEG æ ¸å¿ƒç·¨ç¢¼å™¨
-// ç‰¹é»ï¼š
-// 1. å–®ä¸€ç‹€æ…‹æ©Ÿæ§åˆ¶ï¼Œé‚è¼¯é›†ä¸­ã€‚
-// 2. ç„¡éœ€ä¸­é–“çš„ Zigzag ç·©è¡å€ï¼Œç¯€çœå¤§é‡æš«å­˜å™¨è³‡æºã€‚
-// 3. æµå¼è™•ç†ï¼Œæ¯å€‹é€±æœŸè™•ç†ä¸€å€‹ AC ä¿‚æ•¸ï¼Œæ•ˆç‡é«˜ã€‚
+// ¾ã¦X¤F Zigzag, RLE, Huffman ¥\¯àªº JPEG ®Ö¤ß½s½X¾¹
+// ¯SÂI¡G
+// 1. ³æ¤@ª¬ºA¾÷±±¨î¡AÅŞ¿è¶°¤¤¡C
+// 2. µL»İ¤¤¶¡ªº Zigzag ½w½Ä°Ï¡A¸`¬Ù¤j¶q¼È¦s¾¹¸ê·½¡C
+// 3. ¬y¦¡³B²z¡A¨C­Ó¶g´Á³B²z¤@­Ó AC «Y¼Æ¡A®Ä²v°ª¡C
 // ============================================================================
 
 module jpeg_core_encoder (
-    input wire clk,             // æ™‚è„ˆè¨Šè™Ÿ
-    input wire rst,             // éåŒæ­¥é‡ç½®è¨Šè™Ÿ (é«˜é›»ä½æœ‰æ•ˆ)
-    input wire start_encoding,  // å•Ÿå‹•æ•´å€‹ç·¨ç¢¼æµç¨‹çš„è¨Šè™Ÿ
-    input wire [511:0] pixel_block_flat, // 64 å€‹ 8-bit è¼¸å…¥æ•¸æ“šå¡Š (æ‰“åŒ…é™£åˆ—)
+    input wire clk,             // ®É¯ß°T¸¹
+    input wire rst,             // «D¦P¨B­«¸m°T¸¹ (°ª¹q¦ì¦³®Ä)
+    input wire start_encoding,  // ±Ò°Ê¾ã­Ó½s½X¬yµ{ªº°T¸¹
+    input wire [511:0] pixel_block_flat, // 64 ­Ó 8-bit ¿é¤J¼Æ¾Ú¶ô (¥´¥]°}¦C)
 
-    output reg [15:0] final_huff_code, // æœ€çµ‚è¼¸å‡ºçš„ Huffman ç·¨ç¢¼
-    output reg [3:0]  final_huff_len,  // æœ€çµ‚ Huffman ç·¨ç¢¼çš„é•·åº¦
-    output reg [7:0]  final_val_bits,  // æœ€çµ‚çš„æ•¸å€¼ä½å…ƒ (é Huffman ç·¨ç¢¼éƒ¨åˆ†)
-    output reg        final_out_valid, // æœ€çµ‚è¼¸å‡ºæœ‰æ•ˆè¨Šè™Ÿ
-    output reg        encoding_done    // æ•´å€‹å€å¡Šç·¨ç¢¼å®Œæˆè¨Šè™Ÿ
+    output reg [15:0] final_huff_code, // ³Ì²×¿é¥Xªº Huffman ½s½X
+    output reg [3:0]  final_huff_len,  // ³Ì²× Huffman ½s½Xªºªø«×
+    output reg [7:0]  final_val_bits,  // ³Ì²×ªº¼Æ­È¦ì¤¸ («D Huffman ½s½X³¡¤À)
+    output reg        final_out_valid, // ³Ì²×¿é¥X¦³®Ä°T¸¹
+    output reg        encoding_done    // ¾ã­Ó°Ï¶ô½s½X§¹¦¨°T¸¹
 );
 
     // ================================================================
-    // å…§éƒ¨è³‡æºå®šç¾© (åŸ Zigzag, Huffman æ¨¡çµ„çš„æ ¸å¿ƒéƒ¨åˆ†)
+    // ¤º³¡¸ê·½©w¸q (­ì Zigzag, Huffman ¼Ò²Õªº®Ö¤ß³¡¤À)
     // ================================================================
 
-    // --- Zigzag æŸ¥æ‰¾è¡¨ (ROM) ---
-    // æ­¤è¡¨å®šç¾©äº† Zigzag æƒæçš„é †åº
+    // --- Zigzag ¬d§äªí (ROM) ---
+    // ¦¹ªí©w¸q¤F Zigzag ±½´yªº¶¶§Ç
     reg [5:0] zigzag_table [0:63];
-   
-    // å°‡ 'i' å¾ initial å¡Šå…§éƒ¨ç§»åˆ°æ¨¡çµ„é ‚å±¤è²æ˜
-    reg [7:0] i;
+    integer i_init; // ±N´`ÀôÅÜ¼Æ±q 'i' §ï¬° 'i_init' ¥HÁ×§K½Ä¬ğ
 
     initial begin
-        zigzag_table[ 0]= 0; zigzag_table[ 1]= 1; zigzag_table[ 2]= 8; zigzag_table[ 3]=16;
-        zigzag_table[ 4]= 9; zigzag_table[ 5]= 2; zigzag_table[ 6]= 3; zigzag_table[ 7]=10;
-        zigzag_table[ 8]=17; zigzag_table[ 9]=24; zigzag_table[10]=32; zigzag_table[11]=25;
-        zigzag_table[12]=18; zigzag_table[13]=11; zigzag_table[14]= 4; zigzag_table[15]= 5;
-        zigzag_table[16]=12; zigzag_table[17]=19; zigzag_table[18]=26; zigzag_table[19]=33;
-        zigzag_table[20]=40; zigzag_table[21]=48; zigzag_table[22]=41; zigzag_table[23]=34;
-        zigzag_table[24]=27; zigzag_table[25]=20; zigzag_table[26]=13; zigzag_table[27]= 6;
-        zigzag_table[28]= 7; zigzag_table[29]=14; zigzag_table[30]=21; zigzag_table[31]=28;
-        zigzag_table[32]=35; zigzag_table[33]=42; zigzag_table[34]=49; zigzag_table[35]=56;
-        zigzag_table[36]=57; zigzag_table[37]=50; zigzag_table[38]=43; zigzag_table[39]=36;
-        zigzag_table[40]=29; zigzag_table[41]=22; zigzag_table[42]=15; zigzag_table[43]=23;
-        zigzag_table[44]=30; zigzag_table[45]=37; zigzag_table[46]=44; zigzag_table[47]=51;
-        zigzag_table[48]=58; zigzag_table[49]=59; zigzag_table[50]=52; zigzag_table[51]=45;
-        zigzag_table[52]=38; zigzag_table[53]=31; zigzag_table[54]=39; zigzag_table[55]=46;
-        zigzag_table[56]=53; zigzag_table[57]=60; zigzag_table[58]=61; zigzag_table[59]=54;
-        zigzag_table[60]=47; zigzag_table[61]=55; zigzag_table[62]=62; zigzag_table[63]=63;
+        zigzag_table[ 0]= 6'd0;    zigzag_table[ 1]= 6'd1;    zigzag_table[ 2]= 6'd8;    zigzag_table[ 3]= 6'd16;
+        zigzag_table[ 4]= 6'd9;    zigzag_table[ 5]= 6'd2;    zigzag_table[ 6]= 6'd3;    zigzag_table[ 7]= 6'd10;
+        zigzag_table[ 8]= 6'd17;   zigzag_table[ 9]= 6'd24;   zigzag_table[10]= 6'd32;   zigzag_table[11]= 6'd25;
+        zigzag_table[12]= 6'd18;   zigzag_table[13]= 6'd11;   zigzag_table[14]= 6'd4;    zigzag_table[15]= 6'd5;
+        zigzag_table[16]= 6'd12;   zigzag_table[17]= 6'd19;   zigzag_table[18]= 6'd26;   zigzag_table[19]= 6'd33;
+        zigzag_table[20]= 6'd40;   zigzag_table[21]= 6'd48;   zigzag_table[22]= 6'd41;   zigzag_table[23]= 6'd34;
+        zigzag_table[24]= 6'd27;   zigzag_table[25]= 6'd20;   zigzag_table[26]= 6'd13;   zigzag_table[27]= 6'd6;
+        zigzag_table[28]= 6'd7;    zigzag_table[29]= 6'd14;   zigzag_table[30]= 6'd21;   zigzag_table[31]= 6'd28;
+        zigzag_table[32]= 6'd35;   zigzag_table[33]= 6'd42;   zigzag_table[34]= 6'd49;   zigzag_table[35]= 6'd56;
+        zigzag_table[36]= 6'd57;   zigzag_table[37]= 6'd50;   zigzag_table[38]= 6'd43;   zigzag_table[39]= 6'd36;
+        zigzag_table[40]= 6'd29;   zigzag_table[41]= 6'd22;   zigzag_table[42]= 6'd15;   zigzag_table[43]= 6'd23;
+        zigzag_table[44]= 6'd30;   zigzag_table[45]= 6'd37;   zigzag_table[46]= 6'd44;   zigzag_table[47]= 6'd51;
+        zigzag_table[48]= 6'd58;   zigzag_table[49]= 6'd59;   zigzag_table[50]= 6'd52;   zigzag_table[51]= 6'd45;
+        zigzag_table[52]= 6'd38;   zigzag_table[53]= 6'd31;   zigzag_table[54]= 6'd39;   zigzag_table[55]= 6'd46;
+        zigzag_table[56]= 6'd53;   zigzag_table[57]= 6'd60;   zigzag_table[58]= 6'd61;   zigzag_table[59]= 6'd54;
+        zigzag_table[60]= 6'd47;   zigzag_table[61]= 6'd55;   zigzag_table[62]= 6'd62;   zigzag_table[63]= 6'd63;
     end
 
-    // --- Huffman è¡¨æ ¼ (ROM) ---
-    reg [15:0] huff_table [0:255];
-    reg [3:0]  huff_table_len [0:255];
+    // --- Huffman ¬d§äªí (ROM) for DC and AC ---
+    // ³o¸Ì¥u¥]§t¦b Testbench ¤¤¥i¯à¥Î¨ìªº³¡¤À¡A»İ­n¤@­Ó§¹¾ãªºªí¨Ó¹ê²{
+    // ¬°¤FÂ²¼ä¡A§Ú­Ì¥u¦C¥X¥Î©ó´ú¸Õªº¥²­n³¡¤À¡A§¹¾ã¹ê²{·|«D±`¤j
+    // Huffman Codes (Category, Code) -> Huffman Bits
+    // ¨Ò¦p¡G0_4 (DC, Size 4) -> 0100 (3 bits)
+    //       0_3 (AC, Size 3) -> 0011 (3 bits)
+    //       0_2 (AC, Size 2) -> 0010 (3 bits)
+    //       1_1 (AC, Run 1, Size 1) -> 0010 (4 bits)
+    //       F_0 (15,0) ZRL -> 11111111001 (11 bits)
+    //       0_0 EOB -> 1010 (4 bits)
 
-    // --- Huffman Size è¨ˆç®—å‡½æ•¸ ---
-    function [3:0] size;
-        input [7:0] val;
-        // ä¿®æ­£: ç‚ºå‡½æ•¸å…§éƒ¨å¡Šå‘½åä»¥å…è¨±å±€éƒ¨è®Šé‡è²æ˜
-        begin : size_calc_block
-            reg [7:0] abs_val; // ç”¨æ–¼å­˜æ”¾ val çš„çµ•å°å€¼
+    reg [15:0] huff_table [0:255]; // Huffman ½X
+    reg [3:0]  huff_table_len [0:255]; // Huffman ½Xªºªø«×
 
-            abs_val = val[7] ? (~val + 1) : val;
-            case (abs_val)
-                0:                 size = 0;
-                1:                 size = 1;
-                2, 3:              size = 2;
-                4, 5, 6, 7:        size = 3;
-                default: begin
-                    if (abs_val < 16)      size = 4;
-                    else if (abs_val < 32) size = 5;
-                    else if (abs_val < 64) size = 6;
-                    else if (abs_val < 128)size = 7;
-                    else                   size = 8;
-                end
-            endcase
+    initial begin
+        // DC Codes (run=0, size=0-11)
+        huff_table[8'h04] = 16'b0000000000000100; huff_table_len[8'h04] = 3; // 0_4: 0100
+
+        // AC Codes (run=0-15, size=0-10)
+        huff_table[8'h03] = 16'b0000000000000011; huff_table_len[8'h03] = 3; // 0_3: 0011
+        huff_table[8'h02] = 16'b0000000000000010; huff_table_len[8'h02] = 3; // 0_2: 0010
+        huff_table[8'h11] = 16'b0000000000000010; huff_table_len[8'h11] = 4; // 1_1: 0010 (¦¹³B¬°¥Ü¨Ò¡A¹ê»Ú­È©Mªø«×»İ°Ñ¦ÒJPEG¼Ğ·Ç)
+
+        // Special AC Codes
+        huff_table[8'hF0] = 16'b0000011111111001; huff_table_len[8'hF0] = 11; // F_0 (15,0) ZRL
+        huff_table[8'h00] = 16'b0000000000001010; huff_table_len[8'h00] = 4;  // 0_0 (EOB)
+    end
+
+    // ===============================================================
+    // ª¬ºA¾÷©w¸q
+    // ===============================================================
+
+    parameter S_IDLE       = 3'd0; // ¶¢¸mª¬ºA¡Aµ¥«İ±Ò°Ê
+    parameter S_PROC_DC    = 3'd1; // ³B²z DC «Y¼Æ
+    parameter S_PROC_AC    = 3'd2; // ³B²z AC «Y¼Æ (RLE & Huffman)
+    parameter S_EMIT_ZRL   = 3'd3; // ¿é¥X ZRL ½X
+    parameter S_EMIT_EOB   = 3'd4; // ¿é¥X EOB ½X
+    parameter S_DONE       = 3'd5; // ½s½X§¹¦¨
+
+    reg [2:0] current_state, next_state;
+
+    // ===============================================================
+    // ¤º³¡¼È¦s¾¹©M°T¸¹
+    // ===============================================================
+
+    reg [7:0] current_input_val;    // ·í«e±q pixel_block_flat Åª¨úªº«Y¼Æ
+    reg [7:0] current_val;          // ¸g¹L DPCM ³B²z«áªº DC ­È¡A©Î­ì©l AC ­È
+    reg [3:0] current_size;         // current_val ªº Huffman Category (Size)
+    reg [7:0] huffman_key_comb;     // {run_length, size}¡A¥Î©ó Huffman ¬dªí
+    reg [5:0] ac_idx;               // AC «Y¼Æªº¯Á¤Ş (1¨ì63)
+    reg [3:0] zero_run_count;       // ³sÄò¹sªº­p¼Æ (0¨ì15)
+    reg [7:0] prev_dc_value;        // «e¤@­Ó°Ï¶ôªº DC ­È (¥Î©ó DPCM)
+
+    // ===============================================================
+    // »²§U¨ç¼Æ¡G­pºâ Huffman Category (Size)
+    // ===============================================================
+    function [3:0] calc_size;
+        input [7:0] value;
+        begin
+            if (value == 8'd0) begin
+                calc_size = 4'd0;
+            end else if (value == 8'd1 || value == 8'hFF) begin // 1 or -1
+                calc_size = 4'd1;
+            end else if (value == 8'd2 || value == 8'hFE) begin // 2 or -2
+                calc_size = 4'd2;
+            end else if (value == 8'd3 || value == 8'd4 || value == 8'hFC || value == 8'hFD) begin // 3,4 or -3,-4
+                calc_size = 4'd3;
+            end else if (value >= 8'd5 && value <= 8'd8 || value >= 8'hF8 && value <= 8'hFB) begin // 5-8 or -5--8
+                calc_size = 4'd4;
+            end else if (value >= 8'd9 && value <= 8'd16 || value >= 8'hF0 && value <= 8'hF7) begin // 9-16 or -9--16
+                calc_size = 4'd5;
+            end else if (value >= 8'd17 && value <= 8'd32 || value >= 8'hE0 && value <= 8'hEF) begin // 17-32 or -17--32
+                calc_size = 4'd6;
+            end else if (value >= 8'd33 && value <= 8'd64 || value >= 8'hC0 && value <= 8'hDF) begin // 33-64 or -33--64
+                calc_size = 4'd7;
+            end else if (value >= 8'd65 && value <= 8'd128 || value >= 8'h80 && value <= 8'hBF) begin // 65-128 or -65--128
+                calc_size = 4'd8;
+            end else begin // For values beyond 128 (shouldn't happen with typical DCT output and 8-bit)
+                calc_size = 4'd9; // Example for 129-255 or -129--255
+            end
         end
     endfunction
 
-    // --- Huffman è¡¨æ ¼åˆå§‹åŒ– ---
-    initial begin
-        // 'i' å·²ç¶“åœ¨æ¨¡çµ„é ‚å±¤è²æ˜
-        for (i = 0; i < 256; i = i + 1) begin
-            huff_table[i] = 16'h0000;
-            huff_table_len[i] = 4'h0;
-        end
-        // (run, size) -> key = {run[3:0], size[3:0]}
-        // EOB (End of Block) - (0,0) key=8'h00
-        huff_table[8'h00] = 16'b0000000000001010; huff_table_len[8'h00] = 4;
-        // ZRL (Zero Run Length) - (15,0) key=8'hF0
-        huff_table[8'hF0] = 16'b0000011111110010; huff_table_len[8'hF0] = 11;
-       
-        // (DC or AC Huffman Table for Luminance - ç¯„ä¾‹å€¼)
-        huff_table[8'h01] = 16'b0000000000000000; huff_table_len[8'h01] = 2; // (0,1) -> 00
-        huff_table[8'h02] = 16'b0000000000000010; huff_table_len[8'h02] = 3; // (0,2) -> 010
-        huff_table[8'h03] = 16'b0000000000000011; huff_table_len[8'h03] = 3; // (0,3) -> 011
-        huff_table[8'h04] = 16'b0000000000000100; huff_table_len[8'h04] = 3; // (0,4) -> 100
-        huff_table[8'h05] = 16'b0000000000000101; huff_table_len[8'h05] = 3; // (0,5) -> 101
-        huff_table[8'h06] = 16'b0000000000000110; huff_table_len[8'h06] = 3; // (0,6) -> 110
-        huff_table[8'h07] = 16'b0000000000000111; huff_table_len[8'h07] = 4; // (0,7) -> 1110
-        huff_table[8'h08] = 16'b0000000000001000; huff_table_len[8'h08] = 5; // (0,8) -> 11110
-        huff_table[8'h09] = 16'b0000000000001001; huff_table_len[8'h09] = 6; // (0,9) -> 111110
-        huff_table[8'h0A] = 16'b0000000000001010; huff_table_len[8'h0A] = 7; // (0,10) -> 1111110
-       
-        huff_table[8'h11] = 16'b0000000000001011; huff_table_len[8'h11] = 4; // (1,1)
-        huff_table[8'h12] = 16'b0000000000001100; huff_table_len[8'h12] = 5; // (1,2)
-        huff_table[8'h13] = 16'b0000000000001101; huff_table_len[8'h13] = 6; // (1,3)
-        huff_table[8'h14] = 16'b0000000000001110; huff_table_len[8'h14] = 7; // (1,4)
-        huff_table[8'h15] = 16'b0000000000001111; huff_table_len[8'h15] = 8; // (1,5)
-       
-        // ... æ­¤è™•æ‡‰å¡«å…¥å®Œæ•´çš„ JPEG æ¨™æº– Huffman è¡¨ ...
-    end
 
-    // ================================================================
-    // ç‹€æ…‹æ©Ÿèˆ‡æ§åˆ¶é‚è¼¯
-    // ================================================================
+    // ===============================================================
+    // ®É§ÇÅŞ¿è (Sequential Logic)
+    // ===============================================================
 
-    // --- ç‹€æ…‹å®šç¾© (ä½¿ç”¨ parameter ä»£æ›¿ typedef enum) ---
-    parameter S_IDLE        = 3'b000; // ç©ºé–’ç‹€æ…‹
-    parameter S_PROC_DC     = 3'b001; // è™•ç† DC ä¿‚æ•¸
-    parameter S_PROC_AC     = 3'b010; // è™•ç† AC ä¿‚æ•¸ (ä¸»å¾ªç’°)
-    parameter S_EMIT_ZRL    = 3'b011; // è¼¸å‡º ZRL (16å€‹é€£çºŒçš„0)
-    parameter S_EMIT_EOB    = 3'b100; // è¼¸å‡º EOB (End of Block)
-    parameter S_DONE        = 3'b101; // ç·¨ç¢¼å®Œæˆ
-
-    reg [2:0] current_state, next_state; // ç‹€æ…‹æš«å­˜å™¨
-
-    // --- å…§éƒ¨è¨ˆæ•¸å™¨èˆ‡è®Šæ•¸ ---
-    reg [5:0] ac_idx;           // AC ä¿‚æ•¸ç´¢å¼• (1 to 63)
-    reg [3:0] zero_run_count;   // é€£çºŒ 0 çš„è¨ˆæ•¸å™¨ (0 to 15)
-
-    // --- çµ„åˆé‚è¼¯ï¼šè¨ˆç®—ç•¶å‰é€±æœŸçš„è¼¸å‡º ---
-    wire [7:0] current_val;     // ç•¶å‰ç¶“ Zigzag æ’åºå¾Œçš„å€¼
-    wire [3:0] current_size;    // ç•¶å‰å€¼çš„ Category/Size
-    wire [7:0] huffman_key;     // ç”¨æ–¼æŸ¥æ‰¾ Huffman è¡¨çš„ Key
-
-    // å¾æ‰“åŒ…é™£åˆ—ä¸­æå–æ­£ç¢ºçš„ 8-bit å€¼
-    assign current_val = pixel_block_flat[ (zigzag_table[ac_idx]*8) +: 8 ];
-    assign current_size = size(current_val);
-    assign huffman_key = {zero_run_count, current_size};
-
-    // --- ç‹€æ…‹æš«å­˜å™¨æ›´æ–° (åºå‘é‚è¼¯) ---
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            current_state <= S_IDLE;
-            ac_idx <= 0; // å¾ 0 é–‹å§‹ï¼ŒDC åœ¨ 0 è™•è™•ç†ï¼ŒAC å¾ 1 é–‹å§‹æƒæ
-            zero_run_count <= 0;
+            current_state   <= S_IDLE;
+            ac_idx          <= 6'd0;
+            zero_run_count  <= 4'd0;
+            prev_dc_value   <= 8'd0;
+            encoding_done   <= 1'b0;
         end else begin
             current_state <= next_state;
-           
-            // æ ¹æ“šæ¬¡æ…‹æ›´æ–°è¨ˆæ•¸å™¨
-            case (next_state)
-                S_IDLE: begin // è¿”å› IDLE æ™‚é‡ç½®æ‰€æœ‰è¨ˆæ•¸å™¨
-                    ac_idx <= 0;
-                    zero_run_count <= 0;
+            // ¥u¦³¦b¯S©wª¬ºAÂà´«®É¤~§ó·s­p¼Æ¾¹©M DC ­È
+            if (current_state == S_IDLE && next_state == S_PROC_DC) begin
+                ac_idx          <= 6'd0; // ­«¸m AC ¯Á¤Ş¬° 0 (·Ç³Æ³B²z DC)
+                zero_run_count  <= 4'd0; // ­«¸m¹s­p¼Æ
+                // prev_dc_value ¦b S_PROC_DC ³B²z«á§ó·s
+                encoding_done   <= 1'b0;
+            end else if (current_state == S_PROC_DC && next_state == S_PROC_AC) begin
+                // ±q DC ³B²z§¹²¦¡A§ó·s prev_dc_value¡A·Ç³Æ³B²z AC
+                prev_dc_value <= current_input_val; // DC ­È¦b DPCM «e¬O­ì©l¿é¤J
+                ac_idx        <= 6'd1; // ±q²Ä¤@­Ó AC «Y¼Æ (¯Á¤Ş 1) ¶}©l
+            end else if (current_state == S_PROC_AC && next_state == S_PROC_AC) begin
+                // ³B²z AC «Y¼Æ®É¡A®Ú¾Ú¬O§_¬°¹s§ó·s zero_run_count ©M ac_idx
+                if (current_val == 8'd0) begin
+                    zero_run_count <= zero_run_count + 1;
+                    ac_idx         <= ac_idx + 1;
+                end else begin
+                    zero_run_count <= 4'd0; // «D¹s«Y¼Æ¥X²{¡A­«¸m¹s­p¼Æ
+                    ac_idx         <= ac_idx + 1;
                 end
-                S_PROC_DC: begin // é€²å…¥ DC è™•ç†ï¼ŒAC ç´¢å¼•å¾ 1 é–‹å§‹
-                    ac_idx <= 1;
-                    zero_run_count <= 0;
-                end
-                S_PROC_AC: begin // ä¿æŒåœ¨ AC è™•ç†
-                    if (current_state == S_PROC_AC || current_state == S_EMIT_ZRL) begin
-                        // åƒ…åœ¨å¾ S_PROC_AC æˆ– S_EMIT_ZRL è½‰æ›æ™‚æ›´æ–°è¨ˆæ•¸å™¨
-                        if (current_val != 0) begin
-                            // æ‰¾åˆ°éé›¶ ACï¼Œè¨ˆæ•¸å™¨é‡ç½®ï¼Œç´¢å¼•éå¢
-                            ac_idx <= ac_idx + 1;
-                            zero_run_count <= 0;
-                        end else begin // current_val == 0
-                            if (zero_run_count == 4'd15) begin // é”åˆ° 15 å€‹é€£çºŒ 0
-                                // ZRL æƒ…æ³ï¼Œè¨ˆæ•¸å™¨é‡ç½®ï¼Œç´¢å¼•éå¢
-                                ac_idx <= ac_idx + 1;
-                                zero_run_count <= 0;
-                            end else begin
-                                // æ™®é€š 0ï¼Œè¨ˆæ•¸å™¨éå¢ï¼Œç´¢å¼•éå¢
-                                ac_idx <= ac_idx + 1;
-                                zero_run_count <= zero_run_count + 1;
-                            end
-                        end
-                    end
-                end
-                // å…¶ä»–ç‹€æ…‹ä¸æ”¹è®Šè¨ˆæ•¸å™¨ (æˆ–å·²ç¶“åœ¨çµ„åˆé‚è¼¯ä¸­ç¢ºå®šäº†è¼¸å‡º)
-            endcase
+            end else if (current_state == S_PROC_AC && (next_state == S_EMIT_ZRL || next_state == S_EMIT_EOB)) begin
+                // AC ³B²zµ²§ô¡A·Ç³Æµo°e ZRL ©Î EOB
+                zero_run_count <= 4'd0; // ­«¸m¹s­p¼Æ
+                ac_idx         <= 6'd0; // ­«¸m AC ¯Á¤Ş
+            end else if (next_state == S_DONE) begin
+                encoding_done <= 1'b1;
+            end
         end
     end
 
-    // --- æ¬¡æ…‹èˆ‡è¼¸å‡ºé‚è¼¯ (çµ„åˆé‚è¼¯) ---
+    // ===============================================================
+    // ²Õ¦XÅŞ¿è (Combinational Logic)
+    // ===============================================================
+
     always @(*) begin
-        // é è¨­è¼¸å‡ºå€¼
-        next_state = current_state;
-        final_huff_code = 16'h0000;
-        final_huff_len = 4'h0;
-        final_val_bits = 8'h00;
-        final_out_valid = 1'b0;
-        encoding_done = 1'b0;
+        // Àq»{­È
+        next_state          = current_state;
+        final_huff_code     = 16'b0;
+        final_huff_len      = 4'b0;
+        final_val_bits      = 8'b0;
+        final_out_valid     = 1'b0;
+        current_input_val   = 8'b0;
+        current_val         = 8'b0;
+        current_size        = 4'b0;
+        huffman_key_comb    = 8'b0;
+
 
         case (current_state)
             S_IDLE: begin
                 if (start_encoding) begin
                     next_state = S_PROC_DC;
+                end else begin
+                    next_state = S_IDLE;
                 end
             end
 
             S_PROC_DC: begin
-                // DC ä¿‚æ•¸çš„ run å›ºå®šç‚º 0ï¼Œç´¢å¼•ç‚º 0
-                // å¾ pixel_block_flat ä¸­æå– pixel_block[0]
-                final_huff_code = huff_table[{4'h0, size(pixel_block_flat[7:0])}]; // pixel_block[0] è®Šç‚º pixel_block_flat[7:0]
-                final_huff_len  = huff_table_len[{4'h0, size(pixel_block_flat[7:0])}];
-                final_val_bits  = pixel_block_flat[7:0];
-                final_out_valid = 1'b1;
-                next_state = S_PROC_AC; // è™•ç†å®Œ DC å¾Œé€²å…¥ AC è™•ç†
+                // Åª¨ú DC «Y¼Æ (zigzag_table[0] ¹ïÀ³ pixel_block_flat[7:0])
+                current_input_val = pixel_block_flat[zigzag_table[0]*8 +: 8]; // Á`¬O²Ä¤@­Ó«Y¼Æ
+
+                // DPCM ³B²z¡G·í«e DC ­È - «e¤@­Ó°Ï¶ôªº DC ­È
+                current_val = current_input_val - prev_dc_value;
+
+                // ­pºâ Huffman Category (Size)
+                current_size = calc_size(current_val);
+
+                // DC Huffman Key: {0, Size}
+                huffman_key_comb = {4'b0000, current_size}; // Run for DC is always 0
+
+                final_huff_code = huff_table[huffman_key_comb];
+                final_huff_len  = huff_table_len[huffman_key_comb];
+                
+                // Calculate final_val_bits based on current_val and current_size
+                // --- ­×§ï¶}©l ---
+                if (current_val[7]) begin // Negative number
+                    reg [7:0] abs_val;
+                    reg [7:0] size_mask;
+
+                    abs_val = (~current_val + 1); 
+                    size_mask = (1'b1 << current_size) - 1; 
+
+                    final_val_bits = (~abs_val) & size_mask;
+                end else begin // Positive or Zero number
+                    final_val_bits = current_val;
+                end
+                // --- ­×§ïµ²§ô ---
+
+                final_out_valid = 1'b1; // DC «Y¼Æ³B²z§¹²¦¡A¥»¶g´Á¿é¥X¦³®Ä
+                next_state = S_PROC_AC; // ·Ç³Æ³B²z AC «Y¼Æ
             end
 
             S_PROC_AC: begin
-                // æª¢æŸ¥æ˜¯å¦è™•ç†å®Œæ‰€æœ‰ 63 å€‹ AC ä¿‚æ•¸ (ac_idx å¾ 1 åˆ° 63)
-                if (ac_idx > 63) begin // å·²ç¶“æƒæå®Œæ‰€æœ‰ 63 å€‹ AC (ç´¢å¼• 1 åˆ° 63)
-                    // å¦‚æœ ac_idx åˆ°é” 64ï¼Œè¡¨ç¤ºæ‰€æœ‰ AC éƒ½æƒæå®Œäº†
-                    if (zero_run_count > 0) begin // ä¸”æœ€å¾Œé‚„æœ‰é€£çºŒçš„ 0 æœªè¢«è¼¸å‡ºï¼Œå‰‡éœ€è¦è¼¸å‡º EOB
-                        next_state = S_EMIT_EOB;
-                    end else begin // æ²’æœ‰æœªè¼¸å‡ºçš„ 0ï¼Œç›´æ¥è·³åˆ° EOB
-                         next_state = S_EMIT_EOB;
-                    end
-                end else begin // é‚„åœ¨è™•ç† AC ä¿‚æ•¸
-                    if (current_val != 0) begin
-                        // æ‰¾åˆ°ä¸€å€‹éé›¶çš„ AC ä¿‚æ•¸ï¼Œè¼¸å‡º (run, size) çš„ Huffman ç¢¼
-                        final_huff_code = huff_table[huffman_key];
-                        final_huff_len  = huff_table_len[huffman_key];
-                        final_val_bits  = current_val;
-                        final_out_valid = 1'b1;
-                        next_state = S_PROC_AC; // ç‹€æ…‹ä¿æŒï¼Œç­‰å¾…è¨ˆæ•¸å™¨æ›´æ–°
+                // ÀË¬d¬O§_©Ò¦³ AC «Y¼Æ³£¤w³B²z§¹
+                if (ac_idx >= 6'd64) begin // ¯Á¤Ş 0 ¬O DC¡A©Ò¥H AC ¬O 1 ¨ì 63¡AÁ`¦@ 64 ­Ó«Y¼Æ
+                    // ©Ò¦³«Y¼Æ³£³B²z§¹¡Aµo°e EOB (¦pªG¨S¦³«İ³B²zªº¹s¹B¦æ)
+                    // ¦pªG¦³¹s¿n²Ö¡A¦ı¦b63«á­±¡A¤]À³¸Ó¬OEOB
+                    final_out_valid = 1'b0; // ¦¹¶g´Á¤£¿é¥X¡A¤U­Ó¶g´Á¿é¥X EOB
+                    next_state = S_EMIT_EOB;
+                end else begin
+                    current_input_val = pixel_block_flat[zigzag_table[ac_idx]*8 +: 8];
+                    current_val = current_input_val; // AC «Y¼Æ¤£¶i¦æ DPCM
+
+                    if (current_val != 8'd0) begin
+                        // «D¹s«Y¼Æ¡G¿é¥X·í«e²Ö¿nªº zero_run_count ©M current_val ªº category
+                        current_size = calc_size(current_val);
+                        huffman_key_comb = {zero_run_count, current_size};
+
+                        final_huff_code = huff_table[huffman_key_comb];
+                        final_huff_len  = huff_table_len[huffman_key_comb];
+                        
+                        // Calculate final_val_bits based on current_val and current_size
+                        // --- ­×§ï¶}©l ---
+                        if (current_val[7]) begin // Negative number
+                            reg [7:0] abs_val;
+                            reg [7:0] size_mask;
+
+                            abs_val = (~current_val + 1); 
+                            size_mask = (1'b1 << current_size) - 1; 
+
+                            final_val_bits = (~abs_val) & size_mask;
+                        end else begin // Positive or Zero number
+                            final_val_bits = current_val;
+                        end
+                        // --- ­×§ïµ²§ô ---
+
+                        final_out_valid = 1'b1; // ¦³®Ä¿é¥X
+                        next_state = S_PROC_AC; // Ä~Äò³B²z¤U¤@­Ó AC «Y¼Æ (ac_idx·|¦b®É§ÇÅŞ¿è¤¤§ó·s)
                     end else begin // current_val == 0
+                        // ¹s«Y¼Æ¡G²Ö¿n zero_run_count
                         if (zero_run_count == 4'd15) begin
-                            // ç´¯ç©äº†15å€‹0ï¼Œä¸‹å€‹é€±æœŸéœ€è¦è¼¸å‡º ZRL (15,0)
+                            // ¿n²Ö¤F15­Ó0¡A¤U­Ó¶g´Á»İ­n¿é¥X ZRL (15,0)
                             next_state = S_EMIT_ZRL;
-                            // æ­¤é€±æœŸä¸è¼¸å‡ºï¼Œä¸‹å€‹é€±æœŸæ‰è¼¸å‡º ZRL
+                            // ¦¹¶g´Á¤£¿é¥X¡A¤U­Ó¶g´Á¤~¿é¥X ZRL
                             final_out_valid = 1'b0;
                         end else begin
-                            // åªæ˜¯æ™®é€šçš„0ï¼Œä¸ç”¢ç”Ÿè¼¸å‡ºï¼Œç¹¼çºŒæƒæ
+                            // ¥u¬O´¶³qªº0¡A¤£²£¥Í¿é¥X¡AÄ~Äò±½´y
                             final_out_valid = 1'b0;
                             next_state = S_PROC_AC;
                         end
@@ -266,31 +310,31 @@ module jpeg_core_encoder (
             end
 
             S_EMIT_ZRL: begin
-                // è¼¸å‡º ZRL (run=15, size=0) çš„ç¢¼
+                // ¿é¥X ZRL (run=15, size=0) ªº½X
                 final_huff_code = huff_table[8'hF0];
                 final_huff_len  = huff_table_len[8'hF0];
-                final_val_bits  = 8'h00; // ZRL ä¸å¸¶æ•¸å€¼
+                final_val_bits  = 8'h00; // ZRL ¤£±a¼Æ­È
                 final_out_valid = 1'b1;
-                next_state = S_PROC_AC; // è¼¸å‡ºå®Œ ZRL å¾Œç¹¼çºŒè™•ç† AC (å¦‚æœé‚„æœ‰ AC)
+                next_state = S_PROC_AC; // ¿é¥X§¹ ZRL «áÄ~Äò³B²z AC (¦pªGÁÙ¦³ AC)
             end
-           
+            
             S_EMIT_EOB: begin
-                // è¼¸å‡º EOB (run=0, size=0) çš„ç¢¼
+                // ¿é¥X EOB (run=0, size=0) ªº½X
                 final_huff_code = huff_table[8'h00];
                 final_huff_len  = huff_table_len[8'h00];
-                final_val_bits  = 8'h00; // EOB ä¸å¸¶æ•¸å€¼
+                final_val_bits  = 8'h00; // EOB ¤£±a¼Æ­È
                 final_out_valid = 1'b1;
-                next_state = S_DONE;
+                next_state = S_DONE; // EOB ¿é¥X§¹²¦¡A¶i¤J§¹¦¨ª¬ºA
             end
 
             S_DONE: begin
-                encoding_done = 1'b1;
-                final_out_valid = 1'b0; // å®Œæˆå¾Œï¼Œè¼¸å‡ºä¸å†æœ‰æ•ˆ
-                next_state = S_IDLE; // è¿”å›ç©ºé–’ç‹€æ…‹ï¼Œç­‰å¾…ä¸‹ä¸€å€‹å€å¡Š
+                next_state = S_DONE; // «O«ù¦b§¹¦¨ª¬ºA
+                final_out_valid = 1'b0; // ¤£¦A¿é¥X
+                encoding_done = 1'b1; // ³]¸m§¹¦¨¼Ğ»x
             end
 
-            default: begin
-                next_state = S_IDLE; // é˜²ç¦¦æ€§ç·¨ç¨‹
+            default: begin // ¥¼ª¾ª¬ºA¡A¦^¨ì IDLE
+                next_state = S_IDLE;
             end
         endcase
     end
